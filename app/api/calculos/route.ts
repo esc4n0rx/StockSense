@@ -5,14 +5,13 @@ import { analyzeRotativosBatch } from '@/lib/analise_rotativo';
 export async function POST(req: Request) {
   try {
     console.log('[API calculos] Recebendo requisição em batch');
-    const { data } = await req.json(); 
+    const { data } = await req.json(); // espera { data: [...] }
     console.log('[API calculos] Dados recebidos:', data);
     if (!Array.isArray(data)) {
       throw new Error("O campo 'data' deve ser um array");
     }
     
     const total = data.length;
-
     const results = await analyzeRotativosBatch(data);
     console.log('[API calculos] Processamento finalizado para ' + total + " registros");
 

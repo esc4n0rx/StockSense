@@ -3,13 +3,22 @@ import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
 
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 const logFilePath = path.join(process.cwd(), 'logs_analise_rotativo.txt');
 
-
 function logToFile(message: string): void {
   const timestamp = new Date().toISOString();
-   fs.appendFileSync(logFilePath, `[${timestamp}] ${message}\n`);
+  // Se estivermos no Vercel (ambiente read-only), loga no console
+  if (process.env.VERCEL) {
+    console.log(`[${timestamp}] ${message}`);
+    return;
+  }
+  try {
+    fs.appendFileSync(logFilePath, `[${timestamp}] ${message}\n`);
+  } catch (err) {
+    console.error("Erro ao gravar log em arquivo:", err);
+  }
 }
 
 export interface RotativoAnalysis {
@@ -22,7 +31,6 @@ export interface RotativoAnalysis {
   setor: string;
 }
 
-
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -32,17 +40,16 @@ const supabase = createClient(supabaseUrl, supabaseKey);
  * Para otimizar, realiza consultas em batch para cada tabela necessária e junta os resultados.
  */
 export async function analyzeRotativosBatch(rows: any[]): Promise<any[]> {
-   logToFile(`[analyzeRotativosBatch] Iniciando processamento em lote para ${rows.length} registros.`);
+  logToFile(`[analyzeRotativosBatch] Iniciando processamento em lote para ${rows.length} registros.`);
 
   // Extrai os códigos únicos (garante que o campo 'codigo' esteja definido)
   const codigos = Array.from(new Set(rows.map(r => r.codigo).filter((c: string) => c)));
-   logToFile(`[analyzeRotativosBatch] Codigos únicos: ${JSON.stringify(codigos)}`);
+  logToFile(`[analyzeRotativosBatch] Códigos únicos: ${JSON.stringify(codigos)}`);
 
-  // Separe os códigos em dois grupos:
   const codigosCurto = codigos.filter(c => c.length <= 6);
   const codigosLongo = codigos.filter(c => c.length > 6);
 
-  // Consulta em ss_dados_cadastral para códigos curtos (usando o campo "material")
+  // Consulta para códigos curtos na tabela ss_dados_cadastral (usando "material")
   let dadosCurto: Record<string, number> = {};
   if (codigosCurto.length > 0) {
     const { data, error } = await supabase
@@ -59,9 +66,9 @@ export async function analyzeRotativosBatch(rows: any[]): Promise<any[]> {
       });
     }
   }
-logToFile(`[analyzeRotativosBatch] Resultado ss_dados_cadastral (material): ${JSON.stringify(dadosCurto)}`);
+  logToFile(`[analyzeRotativosBatch] Resultado ss_dados_cadastral (material): ${JSON.stringify(dadosCurto)}`);
 
-  // Consulta para códigos longos: primeiro usando ean1
+  // Consulta para códigos longos usando ean1
   let dadosLongoEan1: Record<string, number> = {};
   if (codigosLongo.length > 0) {
     const { data, error } = await supabase
@@ -69,7 +76,7 @@ logToFile(`[analyzeRotativosBatch] Resultado ss_dados_cadastral (material): ${JS
       .select('ean1, qtd_cx')
       .in('ean1', codigosLongo);
     if (error) {
- logToFile(`[analyzeRotativosBatch] Erro na consulta ss_dados_cadastral (ean1): ${error.message}`);
+      logToFile(`[analyzeRotativosBatch] Erro na consulta ss_dados_cadastral (ean1): ${error.message}`);
     } else if (data) {
       data.forEach((item: any) => {
         if (item.ean1) {
@@ -78,9 +85,9 @@ logToFile(`[analyzeRotativosBatch] Resultado ss_dados_cadastral (material): ${JS
       });
     }
   }
-logToFile(`[analyzeRotativosBatch] Resultado ss_dados_cadastral (ean1): ${JSON.stringify(dadosLongoEan1)}`);
+  logToFile(`[analyzeRotativosBatch] Resultado ss_dados_cadastral (ean1): ${JSON.stringify(dadosLongoEan1)}`);
 
-  // Para os códigos longos que não foram encontrados com ean1, tentar com ean2
+  // Para os códigos longos não encontrados com ean1, consulta com ean2
   let dadosLongoEan2: Record<string, number> = {};
   const codigosLongoNaoEncontrados = codigosLongo.filter(c => !(c in dadosLongoEan1));
   if (codigosLongoNaoEncontrados.length > 0) {
@@ -89,7 +96,7 @@ logToFile(`[analyzeRotativosBatch] Resultado ss_dados_cadastral (ean1): ${JSON.s
       .select('ean2, qtd_cx')
       .in('ean2', codigosLongoNaoEncontrados);
     if (error) {
- logToFile(`[analyzeRotativosBatch] Erro na consulta ss_dados_cadastral (ean2): ${error.message}`);
+      logToFile(`[analyzeRotativosBatch] Erro na consulta ss_dados_cadastral (ean2): ${error.message}`);
     } else if (data) {
       data.forEach((item: any) => {
         if (item.ean2) {
@@ -98,7 +105,7 @@ logToFile(`[analyzeRotativosBatch] Resultado ss_dados_cadastral (ean1): ${JSON.s
       });
     }
   }
-logToFile(`[analyzeRotativosBatch] Resultado ss_dados_cadastral (ean2): ${JSON.stringify(dadosLongoEan2)}`);
+  logToFile(`[analyzeRotativosBatch] Resultado ss_dados_cadastral (ean2): ${JSON.stringify(dadosLongoEan2)}`);
 
   // Consulta para ss_estoque_wms para todos os códigos
   let estoqueWms: Record<string, number> = {};
@@ -108,7 +115,7 @@ logToFile(`[analyzeRotativosBatch] Resultado ss_dados_cadastral (ean2): ${JSON.s
       .select('material, estoque_disponivel')
       .in('material', codigos);
     if (error) {
-logToFile(`[analyzeRotativosBatch] Erro na consulta ss_estoque_wms: ${error.message}`);
+      logToFile(`[analyzeRotativosBatch] Erro na consulta ss_estoque_wms: ${error.message}`);
     } else if (data) {
       data.forEach((item: any) => {
         if (item.material) {
@@ -117,7 +124,7 @@ logToFile(`[analyzeRotativosBatch] Erro na consulta ss_estoque_wms: ${error.mess
       });
     }
   }
-logToFile(`[analyzeRotativosBatch] Resultado ss_estoque_wms: ${JSON.stringify(estoqueWms)}`);
+  logToFile(`[analyzeRotativosBatch] Resultado ss_estoque_wms: ${JSON.stringify(estoqueWms)}`);
 
   // Consulta para ss_mm60 para todos os códigos
   let mm60: Record<string, number> = {};
@@ -127,7 +134,7 @@ logToFile(`[analyzeRotativosBatch] Resultado ss_estoque_wms: ${JSON.stringify(es
       .select('material, preco')
       .in('material', codigos);
     if (error) {
-logToFile(`[analyzeRotativosBatch] Erro na consulta ss_mm60: ${error.message}`);
+      logToFile(`[analyzeRotativosBatch] Erro na consulta ss_mm60: ${error.message}`);
     } else if (data) {
       data.forEach((item: any) => {
         if (item.material) {
@@ -136,9 +143,9 @@ logToFile(`[analyzeRotativosBatch] Erro na consulta ss_mm60: ${error.message}`);
       });
     }
   }
-logToFile(`[analyzeRotativosBatch] Resultado ss_mm60: ${JSON.stringify(mm60)}`);
+  logToFile(`[analyzeRotativosBatch] Resultado ss_mm60: ${JSON.stringify(mm60)}`);
 
-  // Consulta para ss_corte_geral para todos os códigos (agrupando por material e pegando a data máxima)
+  // Consulta para ss_corte_geral para todos os códigos (pegando a data mais recente por material)
   let corteData: Record<string, string> = {};
   if (codigos.length > 0) {
     const { data, error } = await supabase
@@ -147,7 +154,7 @@ logToFile(`[analyzeRotativosBatch] Resultado ss_mm60: ${JSON.stringify(mm60)}`);
       .in('material', codigos)
       .order('data', { ascending: false });
     if (error) {
-logToFile(`[analyzeRotativosBatch] Erro na consulta ss_corte_geral: ${error.message}`);
+      logToFile(`[analyzeRotativosBatch] Erro na consulta ss_corte_geral: ${error.message}`);
     } else if (data) {
       data.forEach((item: any) => {
         if (item.material && item.data && !corteData[item.material]) {
@@ -156,9 +163,9 @@ logToFile(`[analyzeRotativosBatch] Erro na consulta ss_corte_geral: ${error.mess
       });
     }
   }
-logToFile(`[analyzeRotativosBatch] Resultado ss_corte_geral: ${JSON.stringify(corteData)}`);
+  logToFile(`[analyzeRotativosBatch] Resultado ss_corte_geral: ${JSON.stringify(corteData)}`);
 
-  // Para cada registro, juntar os resultados obtidos
+  // Monta o resultado para cada registro
   const updatedRows = rows.map(row => {
     const codigo = row.codigo;
     const contagem = Number(row.contagem) || 0;
@@ -177,6 +184,6 @@ logToFile(`[analyzeRotativosBatch] Resultado ss_corte_geral: ${JSON.stringify(co
     return { ...row, qtd_por_cx, saldo, diferenca, preco, v_ajuste, corte, setor };
   });
 
-  logToFile(`[analyzeRotativosBatch] Processamento finalizado. Total registros processados: ${updatedRows.length}`);
+  logToFile(`[analyzeRotativosBatch] Processamento finalizado. Registros processados: ${updatedRows.length}`);
   return updatedRows;
 }
