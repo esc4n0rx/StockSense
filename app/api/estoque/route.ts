@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import * as XLSX from 'xlsx';
 
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 export async function POST(req: Request) {
   try {
