@@ -6,7 +6,14 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 interface SetorRecord {
   id: number;
@@ -15,7 +22,7 @@ interface SetorRecord {
   descricao: string;
   um: string;
   contagem: number;
-  qtd_cx: number; 
+  qtd_cx: number;
   qtd_por_cx: number;
   saldo: number;
   diferenca: number;
@@ -41,9 +48,7 @@ export default function SetoresPage() {
   const [uploadMessage, setUploadMessage] = useState<string>('');
 
   const [calcModal, setCalcModal] = useState<boolean>(false);
-  const [calcProgress, setCalcProgress] = useState<number>(0);
-  const [calcMessage, setCalcMessage] = useState<string>("");
-
+  const [calcMessage, setCalcMessage] = useState<string>("Processando cálculo...");
 
   async function fetchData() {
     try {
@@ -65,10 +70,10 @@ export default function SetoresPage() {
     }
   }, [selectedDate, currentView]);
 
+
   const availableDates = Array.from(new Set(data.map(r => r.data_feita))).sort(
     (a, b) => new Date(b).getTime() - new Date(a).getTime()
   );
-
 
   const filteredData = data.filter(row => {
     const searchMatch =
@@ -84,46 +89,23 @@ export default function SetoresPage() {
 
   async function recalculateAll() {
     try {
-      setCalcModal(true);
-      setCalcProgress(0);
-      setCalcMessage("Iniciando cálculo...");
-      const res = await fetch('/api/calculos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data }),
-      });
-      if (!res.body) throw new Error("Resposta sem body");
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-      let resultsData: any[] = [];
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value);
-        const events = chunk.split('\n\n');
-        events.forEach(eventStr => {
-          if (eventStr.startsWith('data: ')) {
-            const message = eventStr.slice(6).trim();
-            try {
-              const parsed = JSON.parse(message);
-              if (Array.isArray(parsed)) {
-                resultsData = parsed;
-              }
-            } catch (err) {
-              setCalcMessage(message);
-              const match = message.match(/^(\d+)%/);
-              if (match) {
-                setCalcProgress(Number(match[1]));
-              }
-            }
-          }
-        });
+      if (availableDates.length === 0) {
+        alert("Nenhuma data disponível para cálculo");
+        return;
       }
-      setCalcModal(false);
-      if (resultsData.length > 0) {
-        setData(resultsData);
+
+      const latestDate = availableDates[0];
+      setCalcModal(true);
+      setCalcMessage("Iniciando cálculo para a data " + latestDate + "...");
+      const res = await fetch('/api/calculos?data=' + encodeURIComponent(latestDate));
+      const json = await res.json();
+      if (json.error) {
+        console.error("Erro no cálculo:", json.error);
+      } else {
+        setData(json.data);
         setUnsaved(true);
       }
+      setCalcModal(false);
     } catch (error: any) {
       console.error("Erro no recalculo:", error);
       setCalcMessage("Erro: " + error.message);
@@ -173,7 +155,7 @@ export default function SetoresPage() {
     setUploadMessage('Iniciando upload...');
     
     try {
-      const response = await fetch('/api/rotatio', {
+      const response = await fetch('/api/rotativo', {
         method: 'POST',
         body: formData,
       });
@@ -215,6 +197,32 @@ export default function SetoresPage() {
       setIsUploading(false);
     }
   }
+
+  const renderCalcModal = () => (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 flex flex-col items-center justify-center z-50 bg-black bg-opacity-60 p-4"
+    >
+      <motion.div
+        initial={{ scale: 0.8 }}
+        animate={{ scale: 1 }}
+        exit={{ scale: 0.8 }}
+        transition={{ duration: 0.3 }}
+        className="bg-black p-8 rounded-lg shadow-2xl w-full max-w-lg"
+      >
+        <h2 className="text-2xl font-bold mb-4">Processando Cálculo</h2>
+        <p className="text-lg mb-2">Processamento iniciado para a data mais recente.</p>
+        <p className="text-lg mb-4">{calcMessage}</p>
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={() => setCalcModal(false)} className="px-6 py-3 text-xl">
+            Fechar
+          </Button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
 
   const renderMenu = () => (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -281,7 +289,6 @@ export default function SetoresPage() {
           </Button>
         </div>
       </div>
-
       <div className="max-h-[600px] overflow-y-auto">
         <table className="min-w-full border-collapse">
           <TableHeader>
@@ -334,8 +341,8 @@ export default function SetoresPage() {
                   <TableCell className="px-4 py-2 border">{row.qtd_por_cx}</TableCell>
                   <TableCell className="px-4 py-2 border">{row.saldo}</TableCell>
                   <TableCell className="px-4 py-2 border">{row.diferenca}</TableCell>
-                  <TableCell className="px-4 py-2 border">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(row.preco)}</TableCell>
-                  <TableCell className="px-4 py-2 border">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(row.v_ajuste)}</TableCell>
+                  <TableCell className="px-4 py-2 border">{formatCurrency(row.preco)}</TableCell>
+                  <TableCell className="px-4 py-2 border">{formatCurrency(row.v_ajuste)}</TableCell>
                   <TableCell className="px-4 py-2 border">{row.corte}</TableCell>
                   <TableCell className="px-4 py-2 border">{row.setor}</TableCell>
                 </TableRow>
@@ -347,36 +354,10 @@ export default function SetoresPage() {
     </motion.div>
   );
 
-  const renderCalcModal = () => (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 flex flex-col items-center justify-center z-50 bg-black bg-opacity-60 p-4"
-    >
-      <motion.div
-        initial={{ scale: 0.8 }}
-        animate={{ scale: 1 }}
-        exit={{ scale: 0.8 }}
-        transition={{ duration: 0.3 }}
-        className="bg-black p-8 rounded-lg shadow-2xl w-full max-w-lg"
-      >
-        <h2 className="text-2xl font-bold mb-4">Processando Cálculo</h2>
-        <p className="text-lg mb-2">Progresso: {calcProgress}%</p>
-        <p className="text-lg mb-4">{calcMessage}</p>
-        <div className="flex justify-end">
-          <Button variant="outline" onClick={() => setCalcModal(false)} className="px-6 py-3 text-xl">
-            Fechar
-          </Button>
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-
   return (
     <div className="container py-6">
       {currentView === 'menu' ? renderMenu() : renderAbrirRotativo()}
-      
+
       {showUploadModal && (
         <motion.div 
           initial={{ opacity: 0 }} 
@@ -413,7 +394,7 @@ export default function SetoresPage() {
           </motion.div>
         </motion.div>
       )}
-      
+
       {calcModal && renderCalcModal()}
     </div>
   );
