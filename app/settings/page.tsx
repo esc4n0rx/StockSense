@@ -138,7 +138,6 @@ export default function SettingsPage() {
     }
   }
 
-  // Função para tratar backup via API com SSE (não foi alterada)
   async function handleBackup(tabela: string) {
     try {
       const response = await fetch('/api/backup', {
@@ -179,7 +178,6 @@ export default function SettingsPage() {
 
   return (
     <div className="container py-6">
-      {/* Popup modal para loading no upload dos Dados Base com progresso */}
       {(isUploadingMm60 || isUploadingCadastral) && (
         <div className="fixed inset-0 flex flex-col items-center justify-center z-50 bg-black bg-opacity-50 space-y-4">
           {isUploadingMm60 && (
@@ -207,7 +205,6 @@ export default function SettingsPage() {
             <TabsTrigger value="notificacoes">Notificações</TabsTrigger>
           </TabsList>
 
-          {/* Aba Geral */}
           <TabsContent value="geral" className="space-y-4">
             <Card>
               <CardHeader>
