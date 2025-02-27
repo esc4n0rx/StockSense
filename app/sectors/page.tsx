@@ -139,10 +139,10 @@ export default function SetoresPage() {
 
   async function handleSave() {
     try {
-      const res = await fetch('/api/setores', {
+      const res = await fetch('/api/salvar', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data }),
+        body: JSON.stringify({ data }), 
       });
       if (!res.ok) {
         alert('Erro ao salvar as alterações');
@@ -155,6 +155,7 @@ export default function SetoresPage() {
       alert('Erro ao salvar as alterações');
     }
   }
+  
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
