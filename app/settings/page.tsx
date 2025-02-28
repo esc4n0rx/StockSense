@@ -28,18 +28,13 @@ export default function SettingsPage() {
   const [uploadMmProgress, setUploadMmProgress] = useState<number>(0);
   const [uploadCorteProgress, setUploadCorteProgress] = useState<number>(0);
 
-  // Para Dados Base usamos popup modal com progresso.
   const [isUploadingMm60, setIsUploadingMm60] = useState<boolean>(false);
   const [isUploadingCadastral, setIsUploadingCadastral] = useState<boolean>(false);
   const [baseUploadProgressMm60, setBaseUploadProgressMm60] = useState<number>(0);
   const [baseUploadProgressCadastral, setBaseUploadProgressCadastral] = useState<number>(0);
 
-  const [backupWmsProgress, setBackupWmsProgress] = useState<number>(0);
-  const [backupMmProgress, setBackupMmProgress] = useState<number>(0);
-  const [backupCorteProgress, setBackupCorteProgress] = useState<number>(0);
-  const [backupSystemProgress, setBackupSystemProgress] = useState<number>(0);
+  const [backupLoading, setBackupLoading] = useState<boolean>(false);
 
-  // Função para tratar upload via API com SSE para /api/estoque
   async function handleUpload(tipo: string, e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -82,7 +77,6 @@ export default function SettingsPage() {
     }
   }
 
-  // Função para tratar upload para Dados Base via API com SSE para /api/setores
   async function handleUploadBase(table: string, e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -140,61 +134,37 @@ export default function SettingsPage() {
 
   async function handleBackup(tabela: string) {
     try {
+      setBackupLoading(true);
       const response = await fetch('/api/backup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tabela }),
       });
+      const json = await response.json();
+      setBackupLoading(false);
       if (!response.ok) {
-        console.error('Erro no backup');
-        return;
+        alert('Erro no backup: ' + json.error);
+      } else {
+        alert(`Backup realizado com sucesso para ${tabela}.\nRegistros processados: ${json.backupResults ? JSON.stringify(json.backupResults) : 'OK'}`);
       }
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder('utf-8');
-      if (!reader) return;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value);
-        const events = chunk.split('\n\n');
-        events.forEach(eventStr => {
-          if (eventStr.startsWith('data: ')) {
-            const message = eventStr.replace('data: ', '').trim();
-            console.log('Mensagem SSE Backup:', message);
-            if (message.includes('% concluído')) {
-              const progress = parseInt(message.split('%')[0]);
-              if (tabela === 'estoque_wms') setBackupWmsProgress(progress);
-              else if (tabela === 'estoque_mm') setBackupMmProgress(progress);
-              else if (tabela === 'corte') setBackupCorteProgress(progress);
-              else if (tabela === 'system') setBackupSystemProgress(progress);
-            }
-          }
-        });
-      }
-    } catch (error) {
+    } catch (error: any) {
+      setBackupLoading(false);
       console.error(error);
+      alert('Erro no backup: ' + error.message);
     }
   }
 
   return (
     <div className="container py-6">
-      {(isUploadingMm60 || isUploadingCadastral) && (
-        <div className="fixed inset-0 flex flex-col items-center justify-center z-50 bg-black bg-opacity-50 space-y-4">
-          {isUploadingMm60 && (
-            <p className="text-lg font-semibold text-white">
-              Upload ss_mm60 em andamento: {baseUploadProgressMm60}% concluído
-            </p>
-          )}
-          {isUploadingCadastral && (
-            <p className="text-lg font-semibold text-white">
-              Upload ss_dados_cadastral em andamento: {baseUploadProgressCadastral}% concluído
-            </p>
-          )}
-        </div>
-      )}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-6"
+      >
         <h1 className="text-3xl font-bold">Configurações</h1>
-        <p className="text-muted-foreground">Gerencie as configurações do seu sistema</p>
+        <p className="text-muted-foreground">
+          Gerencie as configurações do seu sistema
+        </p>
 
         <Tabs defaultValue="geral">
           <TabsList>
@@ -205,6 +175,7 @@ export default function SettingsPage() {
             <TabsTrigger value="notificacoes">Notificações</TabsTrigger>
           </TabsList>
 
+          {/* Aba Geral */}
           <TabsContent value="geral" className="space-y-4">
             <Card>
               <CardHeader>
@@ -212,26 +183,27 @@ export default function SettingsPage() {
                   <Building2 className="h-5 w-5" />
                   <CardTitle>Dados da Empresa</CardTitle>
                 </div>
-                <CardDescription>Informações básicas da sua empresa</CardDescription>
+                <CardDescription>
+                  Informações básicas da sua empresa
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="empresa">Nome da Empresa</Label>
-                  <Input id="empresa" type="text" defaultValue="Têxtil Solutions" />
+                  <Input id="empresa" type="text" defaultValue="CD PAVUNA" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="cnpj">CNPJ</Label>
-                  <Input id="cnpj" type="text" defaultValue="12.345.678/0001-90" />
+                  <Input id="cnpj" type="text" defaultValue="00.000.000/0001-90" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="endereco">Endereço</Label>
-                  <Input id="endereco" type="text" defaultValue="Rua da Indústria, 123" />
+                  <Input id="endereco" type="text" defaultValue="Rua Embau,2207" />
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Aba Upload */}
           <TabsContent value="upload" className="space-y-4">
             <Card>
               <CardHeader>
@@ -239,32 +211,44 @@ export default function SettingsPage() {
                   <UploadCloud className="h-5 w-5" />
                   <CardTitle>Upload</CardTitle>
                 </div>
-                <CardDescription>Faça upload dos dados para as tabelas criadas</CardDescription>
+                <CardDescription>
+                  Faça upload dos dados para as tabelas criadas
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Upload Estoque WMS */}
+
                 <div className="space-y-2">
                   <Label htmlFor="upload-wms">Upload Estoque WMS</Label>
-                  <Input id="upload-wms" type="file" onChange={(e) => handleUpload('estoque_wms', e)} />
+                  <Input
+                    id="upload-wms"
+                    type="file"
+                    onChange={(e) => handleUpload('estoque_wms', e)}
+                  />
                   <ProgressBar progress={uploadWmsProgress} />
                 </div>
-                {/* Upload Estoque MM */}
+
                 <div className="space-y-2">
                   <Label htmlFor="upload-mm">Upload Estoque MM</Label>
-                  <Input id="upload-mm" type="file" onChange={(e) => handleUpload('estoque_mm', e)} />
+                  <Input
+                    id="upload-mm"
+                    type="file"
+                    onChange={(e) => handleUpload('estoque_mm', e)}
+                  />
                   <ProgressBar progress={uploadMmProgress} />
                 </div>
-                {/* Upload Corte */}
                 <div className="space-y-2">
                   <Label htmlFor="upload-corte">Upload Corte</Label>
-                  <Input id="upload-corte" type="file" onChange={(e) => handleUpload('corte', e)} />
+                  <Input
+                    id="upload-corte"
+                    type="file"
+                    onChange={(e) => handleUpload('corte', e)}
+                  />
                   <ProgressBar progress={uploadCorteProgress} />
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Aba Dados Base */}
           <TabsContent value="dadosbase" className="space-y-4">
             <Card>
               <CardHeader>
@@ -280,12 +264,20 @@ export default function SettingsPage() {
                 {/* Upload ss_mm60 */}
                 <div className="space-y-2">
                   <Label htmlFor="upload-mm60">Upload ss_mm60</Label>
-                  <Input id="upload-mm60" type="file" onChange={(e) => handleUploadBase('ss_mm60', e)} />
+                  <Input
+                    id="upload-mm60"
+                    type="file"
+                    onChange={(e) => handleUploadBase('ss_mm60', e)}
+                  />
                 </div>
                 {/* Upload ss_dados_cadastral */}
                 <div className="space-y-2">
                   <Label htmlFor="upload-dados-cadastral">Upload ss_dados_cadastral</Label>
-                  <Input id="upload-dados-cadastral" type="file" onChange={(e) => handleUploadBase('ss_dados_cadastral', e)} />
+                  <Input
+                    id="upload-dados-cadastral"
+                    type="file"
+                    onChange={(e) => handleUploadBase('ss_dados_cadastral', e)}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -299,36 +291,49 @@ export default function SettingsPage() {
                   <Cloud className="h-5 w-5" />
                   <CardTitle>Backup</CardTitle>
                 </div>
-                <CardDescription>Gere backup das tabelas atuais para as de backup</CardDescription>
+                <CardDescription>
+                  Gere backup das tabelas principais para as de backup. Ao clicar, os dados serão movidos e a tabela principal limpa.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Backup Estoque WMS */}
                 <div className="space-y-2">
-                  <Button variant="outline" onClick={() => handleBackup('estoque_wms')}>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleBackup('estoque_wms')}
+                    className="w-full"
+                  >
                     Backup Estoque WMS
                   </Button>
-                  <ProgressBar progress={backupWmsProgress} />
+                  
                 </div>
-                {/* Backup Estoque MM */}
                 <div className="space-y-2">
-                  <Button variant="outline" onClick={() => handleBackup('estoque_mm')}>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleBackup('estoque_mm')}
+                    className="w-full"
+                  >
                     Backup Estoque MM
                   </Button>
-                  <ProgressBar progress={backupMmProgress} />
+
                 </div>
-                {/* Backup Corte */}
                 <div className="space-y-2">
-                  <Button variant="outline" onClick={() => handleBackup('corte')}>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleBackup('corte')}
+                    className="w-full"
+                  >
                     Backup Corte
                   </Button>
-                  <ProgressBar progress={backupCorteProgress} />
                 </div>
-                {/* Backup System */}
+                {/* Se necessário, backup System */}
                 <div className="space-y-2">
-                  <Button variant="outline" onClick={() => handleBackup('system')}>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleBackup('system')}
+                    className="w-full"
+                  >
                     Backup System
                   </Button>
-                  <ProgressBar progress={backupSystemProgress} />
                 </div>
               </CardContent>
             </Card>
@@ -348,15 +353,15 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="alerta-estoque">Alertas de estoque baixo</Label>
+                  <Label htmlFor="alerta-estoque">Alertas de Erros</Label>
                   <Switch id="alerta-estoque" defaultChecked />
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="notificacoes-pedidos">Notificações de pedidos</Label>
+                  <Label htmlFor="notificacoes-pedidos">Notificações de Rotativo</Label>
                   <Switch id="notificacoes-pedidos" defaultChecked />
                 </div>
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="relatorios-semanais">Relatórios semanais</Label>
+                  <Label htmlFor="relatorios-semanais">Integrador</Label>
                   <Switch id="relatorios-semanais" />
                 </div>
               </CardContent>

@@ -125,7 +125,7 @@ export default function Home() {
           >
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">Consumo de Estoque</CardTitle>
+                <CardTitle className="text-sm">Gestão de Estoque</CardTitle>
                 <CardDescription className="text-[10px]">
                   Comparativo por data (contagem única por código)
                 </CardDescription>
