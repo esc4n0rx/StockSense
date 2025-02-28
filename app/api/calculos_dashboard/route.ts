@@ -2,8 +2,20 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-
-
+/**
+ * Função auxiliar para converter uma data no formato "dd/mm/yyyy" para um objeto Date.
+ */
+function parseDate(dateStr: string): Date {
+  const match = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (match) {
+    const day = match[1].padStart(2, '0');
+    const month = match[2].padStart(2, '0');
+    const year = match[3];
+    return new Date(`${year}-${month}-${day}`);
+  }
+  // Se não for o formato esperado, tenta converter diretamente
+  return new Date(dateStr);
+}
 
 export async function GET(req: Request) {
   try {
@@ -33,11 +45,16 @@ export async function GET(req: Request) {
 
     // 1. Total de Rotativos do Mes: contagem de datas únicas
     const uniqueDates = Array.from(new Set(setores.map((r: any) => r.data_feita)));
-    const totalRotativos = uniqueDates.length;
+    // Converte para objetos com a data convertida
+    const uniqueDatesParsed = uniqueDates.map(dateStr => ({
+      original: dateStr,
+      parsed: parseDate(dateStr)
+    }));
+    uniqueDatesParsed.sort((a, b) => b.parsed.getTime() - a.parsed.getTime());
+    const totalRotativos = uniqueDatesParsed.length;
 
-    // 2. Último Rotativo feito: a data mais recente
-    const sortedDates = uniqueDates.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-    const ultimoRotativo = sortedDates[0];
+    // 2. Último Rotativo feito: a data mais recente (original)
+    const ultimoRotativo = uniqueDatesParsed[0].original;
 
     // Filtra os registros para a data mais recente
     const registrosRecentes = setores.filter((r: any) => r.data_feita === ultimoRotativo);
@@ -66,7 +83,7 @@ export async function GET(req: Request) {
     });
     const consumoEstoque = Object.entries(consumoMap)
       .map(([date, { totalContagem }]) => ({ data_feita: date, totalContagem }))
-      .sort((a, b) => new Date(a.data_feita).getTime() - new Date(b.data_feita).getTime());
+      .sort((a, b) => parseDate(a.data_feita).getTime() - parseDate(b.data_feita).getTime());
 
     return NextResponse.json({
       totalRotativos,
