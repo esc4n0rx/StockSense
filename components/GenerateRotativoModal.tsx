@@ -17,6 +17,7 @@ interface ManualItem {
 interface GenerateRotativoModalProps {
   onClose: () => void;
   onGenerate: (config: {
+    deposito: string;
     includeCorte: boolean;
     includeZerados: boolean;
     manualItems: ManualItem[];
@@ -45,18 +46,19 @@ export default function GenerateRotativoModal({
     }
     setManualItems([...manualItems, manualItem]);
     setManualItem({ material: '', descricao: '', posicao: '', um: '' });
+    console.log('Item manual adicionado:', manualItem);
   };
 
   const handleGeneratePlanilha = () => {
     const config = {
-      deposito: '',
+      deposito,
       includeCorte,
       includeZerados,
       manualItems,
     };
+    console.log('Configuração enviada:', config);
     onGenerate(config);
   };
-
 
   async function onGenerate(config: {
     deposito: string;
@@ -65,15 +67,23 @@ export default function GenerateRotativoModal({
     manualItems: ManualItem[];
   }) {
     try {
+      console.log('Iniciando geração da planilha...');
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config),
       });
+      
+      console.log('Resposta da API:', res.status, res.statusText);
+      
       if (!res.ok) {
-        throw new Error("Erro ao gerar planilha");
+        const errorBody = await res.text();
+        throw new Error(`Erro ao gerar planilha: ${res.status} - ${errorBody}`);
       }
+      
       const blob = await res.blob();
+      console.log('Blob gerado:', blob.size, 'bytes');
+      
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -82,8 +92,10 @@ export default function GenerateRotativoModal({
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+      
+      console.log('Download da planilha iniciado com sucesso');
     } catch (error: any) {
-      console.error(error);
+      console.error('Erro durante a geração:', error);
       alert(error.message);
     }
   }
