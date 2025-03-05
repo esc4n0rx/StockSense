@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import GenerateRotativoModal from '@/components/GenerateRotativoModal';
 import {
   Table,
   TableBody,
@@ -33,6 +34,12 @@ interface SetorRecord {
   data_feita: string;
 }
 
+interface GenerateRotativoModalProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  // or other specific props
+}
+
 type SortDirection = 'asc' | 'desc';
 
 export default function SetoresPage() {
@@ -45,6 +52,7 @@ export default function SetoresPage() {
   const router = useRouter();
 
   const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
+  const [showGenerateRotativoModal, setShowGenerateRotativoModal] = useState<boolean>(false);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [uploadMessage, setUploadMessage] = useState<string>('');
@@ -260,7 +268,7 @@ export default function SetoresPage() {
         <Button className="w-full py-2 text-base" variant="outline" onClick={() => setCurrentView('abrir')}>
           Abrir Rotativo Existente
         </Button>
-        <Button className="w-full py-2 text-base" variant="outline">
+        <Button className="w-full py-2 text-base" variant="outline" onClick={() => setShowGenerateRotativoModal(true)} >
           Gerar Contagem de Rotativo
         </Button>
         <Button className="w-full py-2 text-base" variant="outline">
@@ -446,6 +454,14 @@ export default function SetoresPage() {
       )}
 
       {calcModal && renderCalcModal()}
+      {showGenerateRotativoModal && (
+        <GenerateRotativoModal 
+          {...{
+            open: showGenerateRotativoModal,
+            onOpenChange: (open: boolean) => setShowGenerateRotativoModal(open)
+          } as any}
+        />
+      )}
     </div>
   );
 }
