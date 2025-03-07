@@ -15,12 +15,12 @@ const features = [
   {
     icon: Package,
     title: 'Gestão de Estoque',
-    description: 'Controle completo do seu inventário com atualizações em tempo real e alertas inteligentes.',
+    description: 'Controle completo do seu inventario rotativo ',
   },
   {
     icon: Users,
     title: 'Alto Desempenho',
-    description: 'Acelere suas operações com um sistema de gestão de estoque eficiente e escalável.',
+    description: 'Acelere suas analises com um sistema de gestão  eficiente e escalável.',
   },
   {
     icon: Clock,
@@ -30,7 +30,7 @@ const features = [
   {
     icon: Shield,
     title: 'Segurança Avançada',
-    description: 'Proteção de dados com criptografia e backup automático em nuvem.',
+    description: 'Proteção de dados e backup automático em nuvem.',
   },
 ];
 
@@ -53,8 +53,8 @@ export default function AboutPage() {
         <div className="text-center space-y-4">
           <h1 className="text-4xl font-bold">StockSense</h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Sistema moderno de gestão de estoque desenvolvido para otimizar seus processos
-            e aumentar a eficiência do seu negócio.
+            Sistema moderno de gestão de inventario e estoque desenvolvido para otimizar seus processos
+            e aumentar sua produtividade.
           </p>
         </div>
 
