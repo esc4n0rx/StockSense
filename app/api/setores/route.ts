@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import * as XLSX from 'xlsx';
 
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 const allowedTables = ['ss_rotativo', 'ss_dados_cadastral', 'ss_mm60','ss_setores'];
 
@@ -122,7 +123,11 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Credenciais do Supabase não configuradas." }, { status: 500 });
     }
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const { data, error } = await supabase.from(table).select("*");
+      const { data, error } = await supabase
+    .from(table)
+    .select("*")
+    .order("data_feita", { ascending: false }); // Ordena por data decrescente
+
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }

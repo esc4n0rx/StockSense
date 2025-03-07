@@ -70,6 +70,7 @@ export default function SetoresPage() {
       let records: SetorRecord[] = Array.isArray(json.data) ? json.data : [];
       if (selectedDate) {
         records = records.filter(record => record.data_feita === selectedDate);
+        console.log(records);
       }
       setData(records);
     } catch (error) {
