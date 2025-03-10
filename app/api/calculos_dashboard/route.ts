@@ -82,26 +82,30 @@ export async function GET(req: Request) {
     const totalDivergencia = uniqueDivergencia.size;
 
     // 3.6. Consumo de Estoque
-    //     Para cada data, soma a contagem de registros únicos (sem repetir código).
-    //     Se houver várias linhas com o mesmo código na mesma data, soma apenas 1x por código.
-    const consumoMap: Record<string, { totalContagem: number; uniqueCodes: Set<string> }> = {};
+      const consumoMap: Record<string, Record<string, number>> = {};
 
-    allSetores.forEach((r: any) => {
-      const date = r.data_feita;
-      if (!consumoMap[date]) {
-        consumoMap[date] = { totalContagem: 0, uniqueCodes: new Set() };
-      }
-      // Evita somar a contagem do mesmo código mais de uma vez na mesma data
-      if (!consumoMap[date].uniqueCodes.has(r.codigo)) {
-        consumoMap[date].uniqueCodes.add(r.codigo);
-        consumoMap[date].totalContagem += Number(r.contagem) || 0;
-      }
-    });
+      allSetores.forEach((r: any) => {
+        const date = r.data_feita;
+        const codigo = r.codigo;
+        const contagem = Number(r.contagem) || 0;
 
-    // Monta o array final e ordena pela data (mais antiga -> mais recente)
-    const consumoEstoque = Object.entries(consumoMap)
-      .map(([data_feita, { totalContagem }]) => ({ data_feita, totalContagem }))
-      .sort((a, b) => a.data_feita.localeCompare(b.data_feita));
+        if (!consumoMap[date]) {
+          consumoMap[date] = {};
+        }
+        // Se o código ainda não foi registrado para esta data, adiciona-o com a contagem
+        if (!consumoMap[date][codigo]) {
+          consumoMap[date][codigo] = contagem;
+        }
+      });
+
+      // Monta o array final: para cada data, soma as contagens dos códigos únicos
+      const consumoEstoque = Object.entries(consumoMap)
+        .map(([data_feita, codigos]) => {
+          const totalContagem = Object.values(codigos).reduce((sum, contagem) => sum + contagem, 0);
+          return { data_feita, totalContagem };
+        })
+        // Ordena as datas em ordem crescente (mais antiga -> mais recente)
+        .sort((a, b) => a.data_feita.localeCompare(b.data_feita));
 
     // 4. Retorno final
     return NextResponse.json({
@@ -111,7 +115,6 @@ export async function GET(req: Request) {
       ultimoRotativo,
       consumoEstoque,
       atividadeRecente: "a ser implementado",
-      // Inclui o total de registros e a quantidade efetivamente carregada
       debug: {
         totalRecords,
         carregados: allSetores.length
