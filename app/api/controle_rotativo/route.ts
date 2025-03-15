@@ -7,7 +7,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Geração do código rotativo: rotativo_ROTATIVOAAAAMMDD_XXXX
 function gerarCodigoRotativo(): string {
   const hoje = new Date();
   const ano = hoje.getFullYear();
@@ -41,37 +40,41 @@ export async function POST(req: Request) {
     }
 
     const codRotativo = gerarCodigoRotativo();
-    const dataAtual = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const dataAtual = new Date().toISOString().split('T')[0];
 
-    const registrosParaInserir = [];
+    // 🔸 Coletar todos os códigos para uma única query
+    const codigosUnicos = [...new Set(materiais.map((m: any) => m.codigo))];
 
-    for (const item of materiais) {
-      const { codigo, descricao, unidade_medida } = item;
+    const { data: estoquesData, error: estoquesError } = await supabase
+      .from('ss_estoque_wms')
+      .select('material, estoque_disponivel')
+      .in('material', codigosUnicos);
 
-      const { data: estoqueData, error: estoqueError } = await supabase
-        .from('ss_estoque_wms')
-        .select('estoque_disponivel')
-        .eq('material', codigo);
-
-      if (estoqueError) {
-        console.error(`Erro ao buscar estoque de ${codigo}`, estoqueError.message);
-        continue;
-      }
-
-      const saldoSAP = estoqueData?.reduce((acc, cur) => acc + (cur.estoque_disponivel || 0), 0) || 0;
-
-      registrosParaInserir.push({
-        codigo,
-        descricao,
-        unidade_medida,
-        saldo_sap: saldoSAP,
-        contagem: 0,
-        data: new Date().toISOString().split('T')[0],
-        cod_rotativo: codRotativo,
-        status: 'pendente'
-      });
+    if (estoquesError) {
+      return NextResponse.json({ error: estoquesError.message }, { status: 500 });
     }
 
+    // 🔸 Agrupar os saldos por material
+    const saldoMap = new Map<string, number>();
+    for (const item of estoquesData || []) {
+      const material = item.material;
+      const estoque = item.estoque_disponivel || 0;
+      saldoMap.set(material, (saldoMap.get(material) || 0) + estoque);
+    }
+
+    // 🔸 Montar os registros de inserção
+    const registrosParaInserir = materiais.map((item: any) => ({
+      codigo: item.codigo,
+      descricao: item.descricao,
+      unidade_medida: item.unidade_medida,
+      saldo_sap: saldoMap.get(item.codigo) || 0,
+      contagem: 0,
+      data: dataAtual,
+      cod_rotativo: codRotativo,
+      status: 'pendente'
+    }));
+
+    // 🔸 Inserir em lote
     const { error: insertError } = await supabase
       .from('inventario_rotativo')
       .insert(registrosParaInserir);
@@ -80,9 +83,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
 
-    return NextResponse.json({ message: 'Itens inseridos com sucesso.', cod_rotativo: codRotativo }, { status: 201 });
+    return NextResponse.json({
+      message: 'Itens inseridos com sucesso.',
+      cod_rotativo: codRotativo,
+      total: registrosParaInserir.length
+    }, { status: 201 });
 
   } catch (err: any) {
+    console.error('[API CONTROLE ROTATIVO] Erro:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
