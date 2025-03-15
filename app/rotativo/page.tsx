@@ -12,7 +12,8 @@ import {
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, FileDown, Filter } from 'lucide-react';
+import { Search, FileDown, Filter, RefreshCcw } from 'lucide-react';
+import { Label } from '@/components/ui/label';
 
 interface ColumnConfig {
   header: string;
@@ -36,6 +37,9 @@ export default function ControleRotativoPage() {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  const [datasFeitas, setDatasFeitas] = useState<string[]>([]);
+  const [selectedDataFeita, setSelectedDataFeita] = useState<string>('');
+  const [updating, setUpdating] = useState<boolean>(false);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -57,8 +61,19 @@ export default function ControleRotativoPage() {
     }
   };
 
+  const fetchDatasFeitas = async () => {
+    try {
+      const res = await fetch('/api/controle_rotativo_update');
+      const json = await res.json();
+      setDatasFeitas(json.datas || []);
+    } catch (e) {
+      console.error('Erro ao carregar datas feitas:', e);
+    }
+  };
+
   useEffect(() => {
     fetchData();
+    fetchDatasFeitas();
   }, []);
 
   const filteredData = data
@@ -69,6 +84,35 @@ export default function ControleRotativoPage() {
       )
     );
 
+  const handleAtualizarContagem = async () => {
+    if (!selectedDataFeita || !selectedCodigo) {
+      alert('Selecione uma data válida e um código rotativo');
+      return;
+    }
+    setUpdating(true);
+    try {
+      const res = await fetch('/api/controle_rotativo_update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cod_rotativo: selectedCodigo, data_feita: selectedDataFeita }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText);
+      }
+
+      const result = await res.json();
+      alert(result.message || 'Contagem atualizada!');
+      fetchData(); // Atualiza dados após update
+    } catch (e: any) {
+      console.error('Erro ao atualizar contagem:', e);
+      alert(`Erro: ${e.message}`);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   return (
     <div className="container py-6 space-y-6">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
@@ -76,7 +120,7 @@ export default function ControleRotativoPage() {
           <h1 className="text-3xl font-bold">Inventário Rotativo</h1>
         </div>
 
-        <div className="flex gap-4 flex-wrap">
+        <div className="flex gap-4 flex-wrap items-center">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input
@@ -98,6 +142,24 @@ export default function ControleRotativoPage() {
               </option>
             ))}
           </select>
+
+          <select
+            className="border rounded p-2"
+            value={selectedDataFeita}
+            onChange={(e: ChangeEvent<HTMLSelectElement>) => setSelectedDataFeita(e.target.value)}
+          >
+            <option value="">Selecionar data feita</option>
+            {datasFeitas.map((data, idx) => (
+              <option key={idx} value={data}>
+                {data}
+              </option>
+            ))}
+          </select>
+
+          <Button onClick={handleAtualizarContagem} disabled={updating}>
+            <RefreshCcw className="mr-2 h-4 w-4" />
+            {updating ? 'Atualizando...' : 'Atualizar Contagem'}
+          </Button>
 
           <Button variant="outline">
             <Filter className="mr-2 h-4 w-4" />Filtros
