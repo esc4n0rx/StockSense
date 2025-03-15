@@ -148,6 +148,38 @@ export async function POST(req: Request) {
 
     console.log(`Total de registros gerados: ${planilhaData.length}`);
 
+
+    const materiaisParaControle = planilhaData.map(item => ({
+      codigo: item.material,
+      descricao: item.descricao,
+      unidade_medida: item.um,
+    }));
+
+
+    try {
+      const respostaControle = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/controle_rotativo`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          materiais: materiaisParaControle
+        })
+      });
+    
+      if (!respostaControle.ok) {
+        console.error('[AVISO] Falha ao registrar materiais no controle rotativo');
+        const erro = await respostaControle.json();
+        console.error(erro);
+      } else {
+        console.log('[INFO] Materiais registrados no controle rotativo com sucesso.');
+      }
+    } catch (e) {
+      console.error('[ERRO] Erro ao fazer requisição para controle rotativo:', e);
+    }
+
+
+
     if (planilhaData.length === 0) {
       return NextResponse.json({ error: "Nenhum dado gerado com as opções selecionadas." }, { status: 400 });
     }

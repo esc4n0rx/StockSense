@@ -19,6 +19,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 
 const menuItems = [
   { icon: Box, label: 'Setores', href: '/sectors' },
+  { icon: Box, label: 'Rotativos', href: '/rotativo' },
   { icon: BarChart, label: 'Estoque', href: '/inventory' },
   { icon: Scissors, label: 'Corte', href: '/cutting' },
   { icon: Settings, label: 'Configurações', href: '/settings' },
