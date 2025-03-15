@@ -131,39 +131,38 @@ export async function POST(req: Request) {
 
     console.log(`[PLANILHA] Total de registros finais: ${planilhaData.length}`);
 
+    // Enviar dados para API de controle rotativo ANTES do retorno
+    console.log('[CONTROLE ROTATIVO] Enviando dados antes do return...');
+    const materiaisParaControle = planilhaData.map((item) => ({
+      codigo: item.material,
+      descricao: item.descricao,
+      unidade_medida: item.um,
+    }));
+
+    try {
+      const respostaControle = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/controle_rotativo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ materiais: materiaisParaControle }),
+      });
+
+      if (!respostaControle.ok) {
+        const erro = await respostaControle.json();
+        console.warn('[CONTROLE ROTATIVO] Falha no POST:', erro);
+      } else {
+        const sucesso = await respostaControle.json();
+        console.log('[CONTROLE ROTATIVO] Dados inseridos com sucesso:', sucesso);
+      }
+    } catch (e) {
+      console.error('[CONTROLE ROTATIVO] Erro ao enviar para API:', e);
+    }
+
     // Geração da planilha
     const worksheet = XLSX.utils.json_to_sheet(planilhaData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Rotativo');
     const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
     console.log('[PLANILHA] Planilha gerada com sucesso. Retornando ao cliente...');
-
-    // Enviar dados para API de controle rotativo após resposta ser enviada
-    setTimeout(async () => {
-      console.log('[CONTROLE ROTATIVO] Enviando dados paralelamente...');
-      const materiaisParaControle = planilhaData.map((item) => ({
-        codigo: item.material,
-        descricao: item.descricao,
-        unidade_medida: item.um,
-      }));
-
-      try {
-        const respostaControle = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/controle_rotativo`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ materiais: materiaisParaControle }),
-        });
-
-        if (!respostaControle.ok) {
-          const erro = await respostaControle.json();
-          console.warn('[CONTROLE ROTATIVO] Falha no POST:', erro);
-        } else {
-          console.log('[CONTROLE ROTATIVO] Dados enviados com sucesso.');
-        }
-      } catch (e) {
-        console.error('[CONTROLE ROTATIVO] Erro ao enviar:', e);
-      }
-    }, 200);
 
     return new Response(buffer, {
       headers: {
