@@ -7,7 +7,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Etapa 1 - GET para listar datas disponíveis do ss_setores agrupadas
+// GET → Datas disponíveis agrupadas
 export async function GET() {
   try {
     const { data, error } = await supabase
@@ -15,11 +15,8 @@ export async function GET() {
       .select('data_feita')
       .order('data_feita', { ascending: false });
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // Agrupar datas únicas
     const datasUnicas = Array.from(new Set(data.map((item) => item.data_feita)));
     return NextResponse.json({ datas: datasUnicas }, { status: 200 });
   } catch (err: any) {
@@ -27,68 +24,75 @@ export async function GET() {
   }
 }
 
-// Etapa 2 - POST para atualizar a contagem do inventario_rotativo com base na data_feita
+// POST → Atualização de contagem por data
 export async function POST(req: Request) {
   try {
     const { data_feita } = await req.json();
 
-    if (!data_feita) {
+    if (!data_feita)
       return NextResponse.json({ error: 'Data não informada.' }, { status: 400 });
-    }
 
-    // Busca todos os inventários criados com essa data
-    const { data: inventarioRotativo, error: errorInventario } = await supabase
+    // Busca os itens de inventário com essa data
+    const { data: inventario, error: errorInventario } = await supabase
       .from('inventario_rotativo')
       .select('*')
       .eq('data', data_feita);
 
-    if (errorInventario) {
+    if (errorInventario)
       return NextResponse.json({ error: errorInventario.message }, { status: 500 });
-    }
 
-    const resultadosAtualizados: any[] = [];
+    // Busca todas contagens dessa data (uma vez só)
+    const { data: setores, error: setoresError } = await supabase
+      .from('ss_setores')
+      .select('codigo, contagem')
+      .eq('data_feita', data_feita);
 
-    for (const item of inventarioRotativo) {
-      const { codigo, id } = item;
+    if (setoresError)
+      return NextResponse.json({ error: setoresError.message }, { status: 500 });
 
-      // Buscar contagem correspondente no ss_setores
-      const { data: setorData, error: setorError } = await supabase
-        .from('ss_setores')
-        .select('contagem')
-        .eq('codigo', codigo)
-        .eq('data_feita', data_feita)
-        .maybeSingle();
+    // Mapeia contagens por código para acesso rápido
+    const contagemMap = new Map<string, number>();
+    setores.forEach((item) => {
+      contagemMap.set(item.codigo, item.contagem ?? 0);
+    });
 
-      if (setorError) {
-        console.warn(`[Contagem] Erro ao buscar contagem para ${codigo}:`, setorError.message);
-        continue;
-      }
+    // Monta o array de updates
+    const updates: { id: number; contagem: number; status: string }[] = [];
 
-      if (!setorData) continue;
-
-      const contagem = setorData.contagem || 0;
-      const saldo_sap = item.saldo_sap || 0;
+    for (const item of inventario) {
+      const contagem = contagemMap.get(item.codigo) ?? 0;
+      const saldo_sap = item.saldo_sap ?? 0;
       const diferenca = contagem - saldo_sap;
 
       let status = 'pendente';
       if (diferenca === 0) status = 'ok';
       else status = 'erro';
 
-      // Atualiza o item
-      const { error: updateError } = await supabase
-        .from('inventario_rotativo')
-        .update({ contagem, status })
-        .eq('id', id);
-
-      if (updateError) {
-        console.warn(`[Contagem] Falha ao atualizar ${codigo}:`, updateError.message);
-        continue;
-      }
-
-      resultadosAtualizados.push({ codigo, saldo_sap, contagem, diferenca, status });
+      updates.push({ id: item.id, contagem, status });
     }
 
-    return NextResponse.json({ message: 'Contagem atualizada.', resultados: resultadosAtualizados }, { status: 200 });
+    // Atualiza os dados em lote usando Promise.allSettled
+    const batchUpdates = updates.map((item) =>
+      supabase
+        .from('inventario_rotativo')
+        .update({ contagem: item.contagem, status: item.status })
+        .eq('id', item.id)
+    );
+
+    const results = await Promise.allSettled(batchUpdates);
+    const resultados: any[] = [];
+
+    results.forEach((result, i) => {
+      const u = updates[i];
+      if (result.status === 'fulfilled') {
+        resultados.push({ ...u, result: 'atualizado' });
+      } else {
+        resultados.push({ ...u, result: 'erro', message: result.reason?.message || 'Falha desconhecida' });
+      }
+    });
+
+    return NextResponse.json({ message: 'Atualização concluída.', resultados }, { status: 200 });
+
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
