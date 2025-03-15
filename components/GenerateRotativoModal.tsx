@@ -60,6 +60,7 @@ export default function GenerateRotativoModal({
     onGenerate(config);
   };
 
+
   async function onGenerate(config: {
     deposito: string;
     includeCorte: boolean;
@@ -73,32 +74,79 @@ export default function GenerateRotativoModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config),
       });
-      
+
       console.log('Resposta da API:', res.status, res.statusText);
-      
-      if (!res.ok) {
-        const errorBody = await res.text();
-        throw new Error(`Erro ao gerar planilha: ${res.status} - ${errorBody}`);
+
+      // CAPTURA O HEADER X-ROTATIVO-DATA
+      const rotativoEncoded = res.headers.get('x-rotativo-data');
+      if (rotativoEncoded) {
+        try {
+          const decoded = atob(rotativoEncoded);
+          const materiais = JSON.parse(decoded);
+          localStorage.setItem('rotativo_controle_job', JSON.stringify(materiais));
+          console.log('[Job Paralelo] Materiais salvos no localStorage:', materiais);
+
+          // DISPARA O JOB PARA ENVIO PARA API
+          jobControleRotativo();
+        } catch (err) {
+          console.error('[Job Paralelo] Falha ao decodificar dados do header:', err);
+        }
+      } else {
+        console.warn('[Job Paralelo] Nenhum header x-rotativo-data encontrado.');
       }
-      
+
+      // DOWNLOAD DA PLANILHA
       const blob = await res.blob();
       console.log('Blob gerado:', blob.size, 'bytes');
-      
+
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
+      const a = document.createElement('a');
       a.href = url;
-      a.download = "rotativo.xlsx";
+      a.download = 'rotativo.xlsx';
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      
+
       console.log('Download da planilha iniciado com sucesso');
     } catch (error: any) {
       console.error('Erro durante a geração:', error);
       alert(error.message);
     }
   }
+
+  // ✅ FUNÇÃO JOB PARA ENVIO DE CONTROLE ROTATIVO
+  async function jobControleRotativo() {
+    try {
+      const jobData = localStorage.getItem('rotativo_controle_job');
+      if (!jobData) {
+        console.warn('[Job Paralelo] Nenhum dado encontrado no localStorage');
+        return;
+      }
+
+      const materiais = JSON.parse(jobData);
+      console.log('[Job Paralelo] Enviando materiais para controle_rotativo:', materiais);
+
+      const res = await fetch('/api/controle_rotativo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ materiais }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error('[Job Paralelo] Falha no envio:', res.status, errText);
+      } else {
+        const result = await res.json();
+        console.log('[Job Paralelo] Controle rotativo salvo com sucesso:', result);
+        localStorage.removeItem('rotativo_controle_job');
+      }
+    } catch (err) {
+      console.error('[Job Paralelo] Erro ao processar job:', err);
+    }
+  }
+
+
   
 
   return (
